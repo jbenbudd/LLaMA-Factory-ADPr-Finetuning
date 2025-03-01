@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+import torch.nn as nn
 from transformers import Seq2SeqTrainer
 from typing_extensions import override
 
@@ -158,3 +159,38 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
         with open(output_prediction_file, "w", encoding="utf-8") as f:
             for text, pred, label in zip(decoded_inputs, decoded_preds, decoded_labels):
                 f.write(json.dumps({"prompt": text, "predict": pred, "label": label}, ensure_ascii=False) + "\n")
+
+
+class CustomWeightedSeq2SeqTrainer(CustomSeq2SeqTrainer):
+    """
+    A custom Seq2Seq trainer that uses a weighted binary cross entropy loss to give more weight to positive labels (PTM sites).
+    You can tweak the pos_weight parameter below to adjust the weighting. 
+
+    Example usage:
+    pos_weight = tensor([10.0])  # Increase to give more weight to positive labels
+    """
+    def compute_loss(self, model, inputs, return_outputs=False):
+        # Assuming 'labels' holds the binary mask for PTM sites
+        labels = inputs.get("labels")
+        if labels is None:
+            raise ValueError("Labels are required for computing loss.")
+
+        # Get model outputs; assuming the model returns an object with a logits attribute
+        outputs = model(**inputs)
+        logits = outputs.logits
+
+        # You might need to adjust the shape if your model outputs sequence logits
+        # Here, we flatten logits and labels
+        logits_flat = logits.view(-1)
+        labels_flat = labels.view(-1).float()
+
+        # Define your weighting. Change the value in pos_weight to tune the loss.
+        # For example, pos_weight = 10.0 means positive examples are weighted 10x more than negatives.
+        pos_weight = torch.tensor([10.0], device=logits.device)  # tweak this value as necessary
+
+        loss_fct = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+        loss = loss_fct(logits_flat, labels_flat)
+        
+        if return_outputs:
+            return loss, outputs
+        return loss

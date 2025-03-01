@@ -25,7 +25,7 @@ from ...extras.ploting import plot_loss
 from ...model import load_model, load_tokenizer
 from ..trainer_utils import create_modelcard_and_push
 from .metric import ComputeAccuracy, ComputeSimilarity, eval_logit_processor
-from .trainer import CustomSeq2SeqTrainer
+from .trainer import CustomWeightedSeq2SeqTrainer
 
 
 if TYPE_CHECKING:
@@ -84,8 +84,9 @@ def run_sft(
     gen_kwargs["pad_token_id"] = tokenizer.pad_token_id
     gen_kwargs["logits_processor"] = get_logits_processor()
 
-    # Initialize our Trainer
-    trainer = CustomSeq2SeqTrainer(
+    # Use the custom weighted trainer to apply the weighted BCE loss
+    print("Using CustomWeightedSeq2SeqTrainer with weighted BCE loss.")
+    trainer = CustomWeightedSeq2SeqTrainer(
         model=model,
         args=training_args,
         finetuning_args=finetuning_args,
