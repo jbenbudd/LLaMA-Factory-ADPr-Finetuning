@@ -175,16 +175,16 @@ class CustomWeightedSeq2SeqTrainer(CustomSeq2SeqTrainer):
         if labels is None:
             raise ValueError("Labels are required for computing loss.")
 
-        # Get model outputs; assuming the model returns an object with a logits attribute
+        # Get model outputs
         outputs = model(**inputs)
         logits = outputs.logits
 
-        # You might need to adjust the shape if your model outputs sequence logits
+        # May need to adjust the shape if model outputs sequence logits
         # Here, we flatten logits and labels
         logits_flat = logits.view(-1)
         labels_flat = labels.view(-1).float()
 
-        # Define your weighting. Change the value in pos_weight to tune the loss.
+        # Define the weighting. Change the value in pos_weight to tune the loss.
         # For example, pos_weight = 10.0 means positive examples are weighted 10x more than negatives.
         pos_weight = torch.tensor([10.0], device=logits.device)  # tweak this value as necessary
 
