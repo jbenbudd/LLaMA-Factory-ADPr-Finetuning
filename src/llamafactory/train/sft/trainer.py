@@ -169,7 +169,7 @@ class CustomWeightedSeq2SeqTrainer(CustomSeq2SeqTrainer):
     Example usage:
     pos_weight = tensor([10.0])  # Increase to give more weight to positive labels
     """
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         class_weights = torch.tensor([1.0, 10.0])  # Higher weight for '1'
         loss_fct = nn.CrossEntropyLoss(weight=class_weights)
         outputs = model(**inputs)
