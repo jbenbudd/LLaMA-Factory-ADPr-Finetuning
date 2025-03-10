@@ -169,48 +169,11 @@ class CustomWeightedSeq2SeqTrainer(CustomSeq2SeqTrainer):
     Example usage:
     pos_weight = tensor([10.0])  # Increase to give more weight to positive labels
     """
-    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
-        # Assuming 'labels' holds the binary mask for PTM sites
-        labels = inputs.get("labels")
-        if labels is None:
-            raise ValueError("Labels are required for computing loss.")
-        # Ensure labels is a torch.Tensor for proper dimensionality checks
-        if not isinstance(labels, torch.Tensor):
-            labels = torch.tensor(labels, device=next(model.parameters()).device)
-
-        # Get model outputs
+    def compute_loss(self, model, inputs, return_outputs=False):
+        class_weights = torch.tensor([1.0, 10.0])  # Higher weight for '1'
+        loss_fct = nn.CrossEntropyLoss(weight=class_weights)
         outputs = model(**inputs)
-        logits = outputs.logits
-
-        # If the logits have more than one element in the last dimension (e.g., vocab logits),
-        # extract the logit corresponding to the positive class (assumed at index 1) to match the binary labels.
-        if logits.size(-1) > 1:
-            if logits.dim() == 3:
-                B, T, V = logits.shape
-                # If labels are flattened ([B*T]) then reshape to [B, T]
-                if labels.dim() == 1 and labels.numel() == B * T:
-                    labels = labels.view(B, T)
-                logits = logits[..., 1]
-            elif logits.dim() == 2:
-                logits = logits[:, 1]
-
-        # Ensure labels tensor has a second dimension matching logits
-        if labels.dim() == 1:
-            labels = labels.unsqueeze(1)
-        if labels.size(1) != logits.size(1):
-            labels = labels.expand(-1, logits.size(1))
-
-        # Flatten logits and labels
-        logits_flat = logits.view(-1)
-        labels_flat = labels.view(-1).float()
-
-        # Define the weighting. Change the value in pos_weight to tune the loss.
-        # For example, pos_weight = 10.0 means positive examples are weighted 10x more than negatives.
-        pos_weight = torch.tensor([10.0], device=logits.device)  # tweak this value as necessary
-
-        loss_fct = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-        loss = loss_fct(logits_flat, labels_flat)
-        
-        if return_outputs:
-            return loss, outputs
-        return loss
+        logits = outputs.logits  # [batch_size, sequence_length, vocab_size]
+        labels = inputs["labels"]  # [batch_size, sequence_length]
+        loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
+        return (loss, outputs) if return_outputs else loss
