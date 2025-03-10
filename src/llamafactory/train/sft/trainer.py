@@ -162,7 +162,7 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
 
 
 class CustomWeightedSeq2SeqTrainer(CustomSeq2SeqTrainer):
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         # Get model outputs and labels
         outputs = model(**inputs)
         logits = outputs.logits  # [batch_size, sequence_length, vocab_size]
