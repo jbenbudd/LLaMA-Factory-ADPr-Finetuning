@@ -162,23 +162,37 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
 
 
 class CustomWeightedSeq2SeqTrainer(CustomSeq2SeqTrainer):
-    def __init__(self, *args, tokenizer=None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, tokenizer=None, tokenizer_module=None, **kwargs):
+        # Extract tokenizer from tokenizer_module if not provided
+        if tokenizer is None and tokenizer_module is not None:
+            tokenizer = tokenizer_module.get("tokenizer")
+        
+        if tokenizer is None:
+            from transformers import AutoTokenizer
+            tokenizer = AutoTokenizer.from_pretrained("GreatCaptainNemo/ProLLaMA_Stage_1")  # Fallback
+        
         self.tokenizer = tokenizer
+        
         token_id_0 = self.tokenizer.convert_tokens_to_ids('0')
         token_id_1 = self.tokenizer.convert_tokens_to_ids('1')
         vocab_size = self.tokenizer.vocab_size
-        # Initialize weights on CPU first, then move to device during compute_loss
         self.class_weights = torch.ones(vocab_size)
         self.class_weights[token_id_0] = 1.0
         self.class_weights[token_id_1] = 10.0
+        
+        # Pop tokenizer from kwargs to avoid passing it to parent unnecessarily
+        if 'tokenizer' in kwargs:
+            kwargs.pop('tokenizer')
+        if 'tokenizer_module' in kwargs:
+            kwargs.pop('tokenizer_module')
+        
+        super().__init__(*args, **kwargs)
 
     def compute_loss(self, model, inputs, return_outputs=False):
         outputs = model(**inputs)
-        logits = outputs.logits  # [batch_size, sequence_length, vocab_size]
-        labels = inputs["labels"]  # [batch_size, sequence_length]
+        logits = outputs.logits
+        labels = inputs["labels"]
         
-        # Move class_weights to the same device as logits
         device = logits.device
         weights_on_device = self.class_weights.to(device)
         loss_fct = nn.CrossEntropyLoss(weight=weights_on_device)
