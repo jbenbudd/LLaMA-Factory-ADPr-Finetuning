@@ -85,7 +85,7 @@ def run_sft(
     gen_kwargs["logits_processor"] = get_logits_processor()
 
     # Use the custom weighted trainer to apply the weighted BCE loss
-    print("Using CustomWeightedSeq2SeqTrainer with weighted BCE loss.")
+    print("Using CustomWeightedSeq2SeqTrainer with weighted CE loss.")
     trainer = CustomWeightedSeq2SeqTrainer(
         model=model,
         args=training_args,
