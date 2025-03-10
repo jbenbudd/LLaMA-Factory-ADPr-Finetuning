@@ -162,40 +162,31 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
 
 
 class CustomWeightedSeq2SeqTrainer(CustomSeq2SeqTrainer):
-    def __init__(self, *args, tokenizer=None, tokenizer_module=None, **kwargs):
-        # Extract tokenizer from tokenizer_module if not provided
-        if tokenizer is None and tokenizer_module is not None:
-            tokenizer = tokenizer_module.get("tokenizer")
-        
-        if tokenizer is None:
-            from transformers import AutoTokenizer
-            tokenizer = AutoTokenizer.from_pretrained("GreatCaptainNemo/ProLLaMA_Stage_1")  # Fallback
-        
-        self.tokenizer = tokenizer
-        
-        token_id_0 = self.tokenizer.convert_tokens_to_ids('0')
-        token_id_1 = self.tokenizer.convert_tokens_to_ids('1')
-        vocab_size = self.tokenizer.vocab_size
-        self.class_weights = torch.ones(vocab_size)
-        self.class_weights[token_id_0] = 1.0
-        self.class_weights[token_id_1] = 10.0
-        
-        # Pop tokenizer from kwargs to avoid passing it to parent unnecessarily
-        if 'tokenizer' in kwargs:
-            kwargs.pop('tokenizer')
-        if 'tokenizer_module' in kwargs:
-            kwargs.pop('tokenizer_module')
-        
-        super().__init__(*args, **kwargs)
-
     def compute_loss(self, model, inputs, return_outputs=False):
+        # Get model outputs and labels
         outputs = model(**inputs)
-        logits = outputs.logits
-        labels = inputs["labels"]
+        logits = outputs.logits  # [batch_size, sequence_length, vocab_size]
+        labels = inputs.get("labels")
+        if labels is None:
+            raise ValueError("Labels are required for computing loss.")
         
-        device = logits.device
-        weights_on_device = self.class_weights.to(device)
-        loss_fct = nn.CrossEntropyLoss(weight=weights_on_device)
+        # Get tokenizer from trainer (handles both old and new API)
+        tokenizer = getattr(self, 'processing_class', self.tokenizer)
         
-        loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
+        # Get token IDs for '0' and '1'
+        token_id_0 = tokenizer.convert_tokens_to_ids('0')
+        token_id_1 = tokenizer.convert_tokens_to_ids('1')
+        
+        # Create class weights dynamically
+        vocab_size = tokenizer.vocab_size
+        class_weights = torch.ones(vocab_size, device=logits.device)
+        class_weights[token_id_0] = 1.0  # Weight for '0'
+        class_weights[token_id_1] = 10.0  # Weight for '1'
+        
+        # Define loss function with weights
+        loss_fct = nn.CrossEntropyLoss(weight=class_weights)
+        
+        # Compute loss (flatten logits and labels)
+        loss = loss_fct(logits.view(-1, vocab_size), labels.view(-1))
+        
         return (loss, outputs) if return_outputs else loss
